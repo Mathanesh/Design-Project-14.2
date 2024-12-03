@@ -225,7 +225,10 @@ class TrajectoryPlannerEnvironment(gym.Env):
         if not self.rendered:
             self.rendered = True
             if mode == "human":
-                plt.ion()
+                # plt.ion()
+                plt.draw()
+                plt.pause(0.01)  # Pause to update the plot
+
             if show_image:
                 self.fig = plt.figure(figsize=(22, 6))
                 gs = gridspec.GridSpec(1, 3, width_ratios=[3, 2, 2])

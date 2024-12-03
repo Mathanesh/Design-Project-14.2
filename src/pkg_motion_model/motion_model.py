@@ -139,7 +139,7 @@ def omnidirectional_model(state: Union[np.ndarray, cs.SX], action: Union[np.ndar
     d_state = ts * action
     return state + d_state
 
-def unicycle_model(state: Union[np.ndarray, cs.SX], action: Union[np.ndarray, cs.SX], ts: float, rk4:bool=True) -> Union[np.ndarray, cs.SX]:
+def unicycle_model(state: Union[np.ndarray, cs.MX], action: Union[np.ndarray, cs.MX], ts: float, rk4:bool=True) -> Union[np.ndarray, cs.MX]:
     """Unicycle model.
     
     Args:
@@ -149,7 +149,7 @@ def unicycle_model(state: Union[np.ndarray, cs.SX], action: Union[np.ndarray, cs
         rk4: If True, use Runge-Kutta 4 to refine the model.
     """
     def d_state_f(state, action):
-        if isinstance(state, cs.SX):
+        if isinstance(state, cs.MX):
             return ts * cs.vertcat(action[0]*cs.cos(state[2]), action[0]*cs.sin(state[2]), action[1])
         return ts * np.array([action[0]*np.cos(state[2]), action[0]*np.sin(state[2]), action[1]])
     if rk4:

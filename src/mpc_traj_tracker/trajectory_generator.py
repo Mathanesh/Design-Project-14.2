@@ -60,6 +60,10 @@ class TrajectoryGenerator:
 
         self.__import_solver(use_tcp=use_tcp)
 
+        # Initialize the drl penalty
+        self.cur_timestep = 0
+        self.q_qval = 5*1e2
+
     def __import_solver(self, root_dir:str='', use_tcp:bool=False):
         self.use_tcp = use_tcp
         solver_path = os.path.join(root_dir, self.config.build_directory, self.config.optimizer_name)
@@ -232,7 +236,7 @@ class TrajectoryGenerator:
         return ref_traj_local, idx_next
 
 
-    def run_step(self, stc_constraints:list, dyn_constraints:list, other_robot_states:list, current_ref_traj:np.ndarray, mode:str='safe', initial_guess:np.ndarray=None):
+    def run_step(self, stc_constraints:list, dyn_constraints:list, other_robot_states:list, current_ref_traj:np.ndarray, mode:str='safe', initial_guess:np.ndarray=None, horizon = 20):
         '''
         Description:
             Run the trajectory planner for one step.
@@ -272,10 +276,11 @@ class TrajectoryGenerator:
         params = list(self.state) + list(finish_state) + list(last_u) + \
                  self.tuning_params + current_refs + speed_ref_list + \
                  other_robot_states + \
-                 stc_constraints + dyn_constraints + self.stc_weights + self.dyn_weights
+                 stc_constraints + dyn_constraints + self.stc_weights + self.dyn_weights + \
+                 [self.N_hor, self.cur_timestep, self.q_qval]
 
         try:
-            taken_states, pred_states, actions, cost, solver_time, exit_status = self.run_solver(params, self.state, self.config.action_steps, initial_guess)
+            taken_states, pred_states, actions, cost, solver_time, exit_status, penalty = self.run_solver(params, self.state, self.config.action_steps, initial_guess)
         except RuntimeError as err:
             if self.use_tcp:
                 self.mng.kill()
@@ -291,7 +296,7 @@ class TrajectoryGenerator:
         if exit_status in self.config.bad_exit_codes and self.vb:
             print(f"{self.__prtname} Bad converge status: {exit_status}")
 
-        return actions, pred_states, cost
+        return actions, pred_states, cost, solver_time, penalty
 
     def run_solver(self, parameters:list, state: np.ndarray, take_steps:int=1, initial_guess:np.ndarray=None):
         '''
@@ -321,6 +326,7 @@ class TrajectoryGenerator:
         cost:float = solution.cost
         exit_status: str = solution.exit_status
         solver_time: float = solution.solve_time_ms
+        penalty:float = solution.penalty
         
         taken_states:List[np.ndarray] = []
         for i in range(take_steps):
@@ -336,7 +342,7 @@ class TrajectoryGenerator:
         actions = u[:self.nu*take_steps]
         actions = np.array(actions).reshape(take_steps, self.nu).tolist()
         actions = [np.array(action) for action in actions]
-        return taken_states, pred_states, actions, cost, solver_time, exit_status
+        return taken_states, pred_states, actions, cost, solver_time, exit_status, penalty
 
     def run_solver_tcp(self, parameters:list, state: np.ndarray, take_steps:int=1):
         solution = self.mng.call(parameters)

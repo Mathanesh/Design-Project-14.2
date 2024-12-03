@@ -1,7 +1,11 @@
+import copy
 import itertools
 
 import numpy as np
+import torch
 
+from pkg_ddpg_td3.environment.environment import TrajectoryPlannerEnvironment
+from pkg_ddpg_td3.utils.per_ddpg import PerDDPG
 from pkg_motion_model import motion_model
 from mpc_traj_tracker.trajectory_generator import TrajectoryGenerator
 from mpc_traj_tracker._path import PathNodeList
@@ -85,10 +89,12 @@ class InterfaceMpc:
                 local_ref_traj = np.concatenate((local_ref_traj, original_ref_traj[:,[2]]), axis=1)
         return original_ref_traj, local_ref_traj, extra_ref_traj
     
-    def get_action(self, current_ref_traj: np.ndarray, mode='work', initial_guess:np.ndarray=None):
+    def get_action(self, current_ref_traj: np.ndarray, mode='work', initial_guess:np.ndarray=None, cur_timestep = 0, horizon = 20):
         if self._traj_gen.check_termination_condition(self.state, self._last_action, self.goal):
             return None
-        actions, pred_states, cost = self._traj_gen.run_step(self.stc_constraints, self.dyn_constraints, 
-                                                             self.other_robot_states, current_ref_traj, mode, initial_guess)
+        self._traj_gen.cur_timestep = cur_timestep
+        actions, pred_states, cost, solver_time, penalty = self._traj_gen.run_step(self.stc_constraints, self.dyn_constraints, 
+                                                             self.other_robot_states, current_ref_traj, mode, initial_guess
+                                                             ,horizon=horizon)
         self._last_action = actions[0]
-        return actions[0], pred_states, cost
+        return actions[0], pred_states, cost, solver_time, penalty

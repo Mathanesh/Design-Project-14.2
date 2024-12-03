@@ -10,12 +10,14 @@ import matplotlib.pyplot as plt
 ### DRL import
 import gym
 from torch import no_grad
+from pkg_motion_model import motion_model
 from stable_baselines3 import DDPG,TD3
 from pkg_ddpg_td3.utils.per_ddpg import PerDDPG
 from stable_baselines3.common import env_checker
 
 from pkg_ddpg_td3.environment import MobileRobot
 from pkg_ddpg_td3.environment.environment import TrajectoryPlannerEnvironment
+from mpc_traj_tracker.mpc.mpc_generator import MpcModule
 
 ### MPC import
 from interface_mpc import InterfaceMpc
@@ -111,6 +113,11 @@ def main(rl_index:int=1, decision_mode:int=1, to_plot=False, scene_option:Tuple[
 
     CONFIG_FN = 'mpc_longiter.yaml'
     cfg_fpath = os.path.join(pathlib.Path(__file__).resolve().parents[1], 'config', CONFIG_FN)
+    
+    # Build the solver here(Only need to build once)
+    MpcModule(Configurator(cfg_fpath)).build(motion_model.unicycle_model, isConsiderDRL=True
+                            , env=env_eval, model=ddpg_model)
+    
     traj_gen = load_mpc(cfg_fpath)
     geo_map = get_geometric_map(env_eval.get_map_description(), inflate_margin=0.8)
     traj_gen.update_static_constraints(geo_map.processed_obstacle_list) # if assuming static obstacles not changed
@@ -157,7 +164,7 @@ def main(rl_index:int=1, decision_mode:int=1, to_plot=False, scene_option:Tuple[
                     chosen_ref_traj = original_ref_traj
                     timer_mpc = PieceTimer()
                     try:
-                        mpc_output = traj_gen.get_action(chosen_ref_traj)
+                        mpc_output = traj_gen.get_action(chosen_ref_traj,cur_timestep=i)
                     except Exception as e:
                         done = True
                         print(f'MPC fails: {e}')
@@ -165,7 +172,7 @@ def main(rl_index:int=1, decision_mode:int=1, to_plot=False, scene_option:Tuple[
                     last_mpc_time = timer_mpc(4, ms=True)
                     if mpc_output is None:
                         break
-                    action, pred_states, cost = mpc_output
+                    # action, pred_states, cost = mpc_output
 
                 elif decision_mode == 1:
                     traj_gen.set_current_state(env_eval.agent.state)
@@ -225,9 +232,11 @@ def main(rl_index:int=1, decision_mode:int=1, to_plot=False, scene_option:Tuple[
                         chosen_ref_traj = filtered_ref_traj
                     else:
                         chosen_ref_traj = original_ref_traj
+                    # chosen_ref_traj = original_ref_traj
+
                     timer_mpc = PieceTimer()
                     try:
-                        mpc_output = traj_gen.get_action(chosen_ref_traj) # MPC computes the action
+                        mpc_output = traj_gen.get_action(chosen_ref_traj,cur_timestep=i) # MPC computes the action
                     except Exception as e:
                         done = True
                         print(f'MPC fails: {e}')
@@ -270,7 +279,7 @@ def main(rl_index:int=1, decision_mode:int=1, to_plot=False, scene_option:Tuple[
                         chosen_ref_traj = original_ref_traj
                     timer_mpc = PieceTimer()
                     try:
-                        mpc_output = traj_gen.get_action(chosen_ref_traj) # MPC computes the action
+                        mpc_output = traj_gen.get_action(chosen_ref_traj,cur_timestep=i) # MPC computes the action
                     except Exception as e:
                         done = True
                         print(f'MPC fails: {e}')
@@ -324,10 +333,10 @@ if __name__ == '__main__':
 
     decision_mode: 0 = MPC, 1 = DDPG, 2 = TD3, 3 = Hybrid DDPG, 4 = Hybrid TD3  
     """
-    scene_option = (1, 3, 2)
+    scene_option = (1, 3, 1)
 
-    time_list_mpc     = main(rl_index=1,    decision_mode=0,  to_plot=False, scene_option=scene_option, save_num=1) # Eval MPC using main.py
-    time_list_img     = main(rl_index=0,    decision_mode=1,  to_plot=False, scene_option=scene_option, save_num=3)
-    time_list_hyb_img = main(rl_index=0,    decision_mode=3,  to_plot=True, scene_option=scene_option, save_num=5)
+    # time_list_mpc     = main(rl_index=1,    decision_mode=0,  to_plot=False, scene_option=scene_option, save_num=1) # Eval MPC using main.py
+    # time_list_img     = main(rl_index=0,    decision_mode=1,  to_plot=False, scene_option=scene_option, save_num=3)
+    time_list_hyb_img = main(rl_index=1,    decision_mode=0,  to_plot=True, scene_option=scene_option, save_num=5)
 
     input('Press enter to exit...')
