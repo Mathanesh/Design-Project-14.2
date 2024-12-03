@@ -64,7 +64,7 @@ def load_rl_model_env(generate_map, index: int) -> Tuple[PerDDPG, TD3, Trajector
     else:
         raise ValueError('Invalid index')
     model_path_ddpg = os.path.join(pathlib.Path(__file__).resolve().parents[1], 'Model/ddpg', model_folder_name, 'best_model')
-    model_path_td3 = os.path.join(pathlib.Path(__file__).resolve().parents[1], 'Model/td3', model_folder_name, 'best_model')
+    model_path_td3 = os.path.join(pathlib.Path(__file__).resolve().parents[1], 'Model/td3', model_folder_name, 'best_model_MPC')
     
     env_eval:TrajectoryPlannerEnvironment = gym.make(variant['env_name'], generate_map=generate_map)
     env_checker.check_env(env_eval)
@@ -362,7 +362,7 @@ if __name__ == '__main__':
                         #  (1, 3, 2), # f-large
                         #  (1, 4, 1), # face-to-face
                         #  (2, 1, 1), # right turn with an obstacle
-                          (2, 1, 2), # sharp turn with an obstacle
+                         (2, 1, 2), # sharp turn with an obstacle
                         #  (2, 1, 3), # u-turn with an obstacle
                          ]
     

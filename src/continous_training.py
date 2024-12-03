@@ -34,12 +34,6 @@ from typing import Callable
 from pkg_ddpg_td3.utils.per_ddpg import PerDDPG
 from pkg_ddpg_td3.utils.per_td3 import PerTD3
 
-### MPC import
-from interface_mpc import InterfaceMpc
-from util.mpc_config import Configurator
-
-from helper_main_continous import get_geometric_map, HintSwitcher, Metrics
-
 
 def linear_schedule(initial_value: float) -> Callable[[float], float]:
     """
@@ -169,7 +163,7 @@ def run():
         },
     ][index]
 
-    tot_timesteps = 7e1
+    tot_timesteps = 8
     n_cpu = 6
     
     # Load a pre-trained model
@@ -198,7 +192,8 @@ def run():
 				                n_eval_episodes=4*n_cpu)
 
     if load_checkpoint:
-        model = Algorithm.load(f"{path}/best_model", env=vec_env)
+        custom_lr = {'learning_rate': 1e-2}
+        model = Algorithm.load(f"{path}/best_model_MPC", env=vec_env, custom_objects=custom_lr)
     else:
         model = Algorithm("MultiInputPolicy",
                     vec_env, 
@@ -220,7 +215,7 @@ def run():
     model.learn(total_timesteps=tot_timesteps, log_interval=4, progress_bar=True, callback=eval_callback)
 
     # Save the model
-    model.save(f"{path}/best_model")
+    model.save(f"{path}/best_model_MPC")
 
                     
     
