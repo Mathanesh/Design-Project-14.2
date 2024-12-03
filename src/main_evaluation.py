@@ -301,7 +301,7 @@ if __name__ == '__main__':
                     (2, 1, 1), # right turn with an obstacle       # MPC cant handle
                     (2, 1, 2), # sharp turn with an obstacle
                     (2, 1, 3), # u-turn with an obstacle           # MPC cant handle
-                    ][2]
+                    ][8]
     
     rl_index = 1
     num_trials = 1
@@ -314,8 +314,8 @@ if __name__ == '__main__':
     for i in range(num_trials):
         print(f"Trial {i+1}/{num_trials}")
         mpc_metrics     = main_evaluate(rl_index=1, decision_mode=1, metrics=mpc_metrics, scene_option=scene_option)
-        dqn_img_metrics = main_evaluate(rl_index=0, decision_mode=0, metrics=dqn_img_metrics, scene_option=scene_option)
-        hyb_img_metrics = main_evaluate(rl_index=0, decision_mode=2, metrics=hyb_img_metrics, scene_option=scene_option)
+        dqn_img_metrics = main_evaluate(rl_index=1, decision_mode=0, metrics=dqn_img_metrics, scene_option=scene_option)
+        hyb_img_metrics = main_evaluate(rl_index=1, decision_mode=2, metrics=hyb_img_metrics, scene_option=scene_option)
 
     round_digits = 2
     print(f"=== Scene {scene_option[0]}-{scene_option[1]}-{scene_option[2]} ===")

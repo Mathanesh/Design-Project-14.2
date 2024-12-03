@@ -37,3 +37,9 @@ register(
     entry_point='pkg_ddpg_td3.environment.variants.rays_reward2:TrajectoryPlannerEnvironmentRaysReward2',
     max_episode_steps=max_episode_steps,
 )
+register(
+    id='TrajectoryPlannerEnvironmentRaysRewardMPC-v0',
+    entry_point='pkg_ddpg_td3.environment.variants.rays_reward_mpc:TrajectoryPlannerEnvironmentRaysRewardMPC',
+    max_episode_steps=max_episode_steps,
+)
+

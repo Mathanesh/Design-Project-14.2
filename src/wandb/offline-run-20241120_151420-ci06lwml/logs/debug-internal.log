@@ -1,0 +1,15 @@
+{"time":"2024-11-20T15:14:20.37289182+01:00","level":"INFO","msg":"using version","core version":"0.18.7"}
+{"time":"2024-11-20T15:14:20.372936904+01:00","level":"INFO","msg":"created symlink","path":"/home/valsamu/DRL-Traj-Planner/src/wandb/offline-run-20241120_151420-ci06lwml/logs/debug-core.log"}
+{"time":"2024-11-20T15:14:20.511236192+01:00","level":"INFO","msg":"created new stream","id":"ci06lwml"}
+{"time":"2024-11-20T15:14:20.511302674+01:00","level":"INFO","msg":"stream: started","id":"ci06lwml"}
+{"time":"2024-11-20T15:14:20.511360786+01:00","level":"INFO","msg":"writer: Do: started","stream_id":"ci06lwml"}
+{"time":"2024-11-20T15:14:20.511414425+01:00","level":"INFO","msg":"handler: started","stream_id":"ci06lwml"}
+{"time":"2024-11-20T15:14:20.511402103+01:00","level":"INFO","msg":"sender: started","stream_id":"ci06lwml"}
+{"time":"2024-11-20T15:14:20.519752096+01:00","level":"INFO","msg":"Starting system monitor"}
+{"time":"2024-11-20T15:14:21.043944284+01:00","level":"INFO","msg":"stream: closing","id":"ci06lwml"}
+{"time":"2024-11-20T15:14:21.044085579+01:00","level":"INFO","msg":"Stopping system monitor"}
+{"time":"2024-11-20T15:14:21.04617739+01:00","level":"INFO","msg":"Stopped system monitor"}
+{"time":"2024-11-20T15:14:21.046391806+01:00","level":"INFO","msg":"handler: closed","stream_id":"ci06lwml"}
+{"time":"2024-11-20T15:14:21.046410337+01:00","level":"INFO","msg":"writer: Close: closed","stream_id":"ci06lwml"}
+{"time":"2024-11-20T15:14:21.046422342+01:00","level":"INFO","msg":"sender: closed","stream_id":"ci06lwml"}
+{"time":"2024-11-20T15:14:21.046482181+01:00","level":"INFO","msg":"stream: closed","id":"ci06lwml"}

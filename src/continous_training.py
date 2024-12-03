@@ -9,6 +9,9 @@ This is generally done by the slurm array function as seen in ``SLURM_jobscript.
 """
 
 import sys
+import os
+import pathlib
+
 import gym
 import numpy as np
 import random
@@ -17,16 +20,26 @@ from stable_baselines3.common.vec_env import SubprocVecEnv
 from stable_baselines3 import DDPG, TD3
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.callbacks import EvalCallback
+
+from stable_baselines3.common import env_checker
 # from src.pkg_ddpg_td3.utils.plotresults import plot_training_results
 from stable_baselines3.common.env_checker import check_env
 from torch import no_grad
-from pkg_ddpg_td3.utils.map import generate_map_dynamic, generate_map_eval
+from pkg_ddpg_td3.utils.map import generate_map_dynamic, generate_map_eval, generate_map_scene_1, generate_map_scene_2
 from pkg_ddpg_td3.utils.map_simple import generate_simple_map_dynamic, generate_simple_map_nonconvex, generate_simple_map_static
 from pkg_ddpg_td3.environment import MapDescription
+from pkg_ddpg_td3.environment.environment import TrajectoryPlannerEnvironment
 from stable_baselines3.common.noise import NormalActionNoise, OrnsteinUhlenbeckActionNoise
 from typing import Callable
 from pkg_ddpg_td3.utils.per_ddpg import PerDDPG
 from pkg_ddpg_td3.utils.per_td3 import PerTD3
+
+### MPC import
+from interface_mpc import InterfaceMpc
+from util.mpc_config import Configurator
+
+from helper_main_continous import get_geometric_map, HintSwitcher, Metrics
+
 
 def linear_schedule(initial_value: float) -> Callable[[float], float]:
     """
@@ -75,15 +88,18 @@ def step_schedule(initial_value: float) -> Callable[[float], float]:
 
 def generate_map() -> MapDescription:
     # return random.choice([generate_map_dynamic, generate_map_corridor, generate_map_mpc(), generate_simple_map_static, generate_simple_map_dynamic, generate_simple_map_nonconvex])()
-    return random.choice([generate_map_dynamic, generate_simple_map_nonconvex, generate_simple_map_dynamic,generate_simple_map_static])()
+    #return random.choice([generate_map_dynamic, generate_simple_map_nonconvex, generate_simple_map_dynamic,generate_simple_map_static])()
+    return generate_map_scene_2(1,3)
 
 def run():
     # Selects which predefined agent model to use
     index = int(sys.argv[1])
-    run_index = int(sys.argv[2])
+    #run_index = int(sys.argv[2])
 
     # Select the path where the model should be stored
-    path = f'/cephyr/users/cederk/Vera/github/DRL-Traj-Planner/Model/training/variant-{index}/run{run_index}'
+    path = f'/home/valsamu/DRL-Traj-Planner/Model/td3/ray'
+
+    
 
     # Parameters for different example agent models 
     variant = [
@@ -144,15 +160,21 @@ def run():
             'per': True,
             'device': 'cpu',
         },
+        {
+            'algorithm' : "TD3",
+            'env_name': 'TrajectoryPlannerEnvironmentRaysRewardMPC-v0',
+            'net_arch': [16, 16],
+            'per': True,
+            'device': 'cpu',
+        },
     ][index]
 
-    tot_timesteps = 7e6
-    n_cpu = 32
+    tot_timesteps = 7e1
+    n_cpu = 6
     
     # Load a pre-trained model
-    load_checkpoint = 0
+    load_checkpoint = True
 
-    # env_eval = gym.make(variant['env_name'], generate_map=generate_map_multi_robot3)
     vec_env = make_vec_env(variant['env_name'], n_envs=n_cpu, seed=0, vec_env_cls=SubprocVecEnv, env_kwargs={'generate_map': generate_map})
     vec_env_eval = make_vec_env(variant['env_name'], n_envs=n_cpu, seed=0, vec_env_cls=SubprocVecEnv, env_kwargs={'generate_map': generate_map})
     # check_env(env_eval)
@@ -198,7 +220,7 @@ def run():
     model.learn(total_timesteps=tot_timesteps, log_interval=4, progress_bar=True, callback=eval_callback)
 
     # Save the model
-    model.save(f"{path}/final_model")
+    model.save(f"{path}/best_model")
 
                     
     

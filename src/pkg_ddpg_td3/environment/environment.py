@@ -1,7 +1,6 @@
 from time import time
 from packaging import version
 
-
 import gym
 from gym import spaces
 
@@ -202,6 +201,7 @@ class TrajectoryPlannerEnvironment(gym.Env):
 
     def step(self, action: int) -> tuple[dict, float, bool, bool, dict]:
         self.step_obstacles()
+
         self.step_agent(action)
 
         self.update_status()
