@@ -116,11 +116,11 @@ class TrajectoryPlannerEnvironmentRaysRewardMPC(TrajectoryPlannerEnvironment):
             mpc_action, pred_states, cost = mpc_output
         except Exception as e:
             print(f'MPC fails: {e}')
-            #a = e
-        #mpc output velocity
+        
         last_mpc_time = timer_mpc(4, ms=True)
         action = (mpc_action - self.last_action)/self.time_step
         self.last_action = mpc_action
+
         return super().step(action)
     
     def reset(self, seed=None, options=None) -> Tuple[dict]:

@@ -83,7 +83,7 @@ def step_schedule(initial_value: float) -> Callable[[float], float]:
 def generate_map() -> MapDescription:
     # return random.choice([generate_map_dynamic, generate_map_corridor, generate_map_mpc(), generate_simple_map_static, generate_simple_map_dynamic, generate_simple_map_nonconvex])()
     #return random.choice([generate_map_dynamic, generate_simple_map_nonconvex, generate_simple_map_dynamic,generate_simple_map_static])()
-    return generate_map_scene_2(1,3)
+    return generate_map_scene_1(1,3)
 
 def run():
     # Selects which predefined agent model to use
@@ -163,11 +163,11 @@ def run():
         },
     ][index]
 
-    tot_timesteps = 8
-    n_cpu = 6
+    tot_timesteps = 1e2
+    n_cpu = 4
     
     # Load a pre-trained model
-    load_checkpoint = True
+    load_checkpoint = False
 
     vec_env = make_vec_env(variant['env_name'], n_envs=n_cpu, seed=0, vec_env_cls=SubprocVecEnv, env_kwargs={'generate_map': generate_map})
     vec_env_eval = make_vec_env(variant['env_name'], n_envs=n_cpu, seed=0, vec_env_cls=SubprocVecEnv, env_kwargs={'generate_map': generate_map})
@@ -192,12 +192,12 @@ def run():
 				                n_eval_episodes=4*n_cpu)
 
     if load_checkpoint:
-        custom_lr = {'learning_rate': 1e-2}
+        custom_lr = {'learning_rate': 0.01}
         model = Algorithm.load(f"{path}/best_model_MPC", env=vec_env, custom_objects=custom_lr)
     else:
         model = Algorithm("MultiInputPolicy",
                     vec_env, 
-                    learning_rate=1e-4, 
+                    learning_rate=1e-2, 
                     buffer_size=int(1e6), 
                     learning_starts=int(1e6),
                     batch_size=int(32), 
@@ -215,7 +215,7 @@ def run():
     model.learn(total_timesteps=tot_timesteps, log_interval=4, progress_bar=True, callback=eval_callback)
 
     # Save the model
-    model.save(f"{path}/best_model_MPC")
+    model.save(f"{path}/best_model_MPC_2")
 
                     
     
