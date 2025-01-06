@@ -62,7 +62,7 @@ class TrajectoryGenerator:
 
         # Initialize the drl penalty
         self.cur_timestep = 0
-        self.q_qval = 5*1e2
+        self.q_qval = 2000 # 650
 
     def __import_solver(self, root_dir:str='', use_tcp:bool=False):
         self.use_tcp = use_tcp
@@ -278,6 +278,20 @@ class TrajectoryGenerator:
                  other_robot_states + \
                  stc_constraints + dyn_constraints + self.stc_weights + self.dyn_weights + \
                  [self.N_hor, self.cur_timestep, self.q_qval]
+                #  [(self.config.lin_vel_max + self.config.lin_vel_min) / 2, 0]
+                #  [self.config.lin_jerk_penalty, self.config.ang_jerk_penalty] 
+        # print("Length of each component:")
+        # print("Length of self.state:", len(self.state))
+        # print("Length of finish_state:", len(finish_state))
+        # print("Length of last_u:", len(last_u))
+        # print("Length of self.tuning_params:", len(self.tuning_params))
+        # print("Length of current_refs:", len(current_refs))
+        # print("Length of speed_ref_list:", len(speed_ref_list))
+        # print("Length of other_robot_states:", len(other_robot_states))
+        # print("Length of stc_constraints:", len(stc_constraints))
+        # print("Length of dyn_constraints:", len(dyn_constraints))
+        # print("Length of self.stc_weights:", len(self.stc_weights))
+        # print("Length of self.dyn_weights:", len(self.dyn_weights))
 
         try:
             taken_states, pred_states, actions, cost, solver_time, exit_status, penalty = self.run_solver(params, self.state, self.config.action_steps, initial_guess)
@@ -327,6 +341,11 @@ class TrajectoryGenerator:
         exit_status: str = solution.exit_status
         solver_time: float = solution.solve_time_ms
         penalty:float = solution.penalty
+        # print("Solution: ",u)
+        # print("Cost: ",cost)
+        # print("Exit Status: ",exit_status)
+        # print("Solver time: ",solver_time)
+        # print("Penalty: ",penalty)
         
         taken_states:List[np.ndarray] = []
         for i in range(take_steps):

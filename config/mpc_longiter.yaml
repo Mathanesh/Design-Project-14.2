@@ -11,8 +11,11 @@ lin_vel_min: -0.5    # Vehicle contraint on the minimal velocity possible
 lin_vel_max: 1.5     # Vehicle contraint on the maximal velocity possible
 lin_acc_min: -1      # Vehicle contraint on the maximal linear retardation
 lin_acc_max: 1       # Vehicle contraint on the maximal linear acceleration
+lin_jerk_min: -8      # Vehicle contraint on the maximal linear retardation
+lin_jerk_max: 8       # Vehicle contraint on the maximal linear acceleration
 ang_vel_max: 0.5     # Vehicle contraint on the maximal angular velocity
 ang_acc_max: 3       # Vehicle contraint on the maximal angular acceleration (considered to be symmetric)
+ang_jerk_max: 8       # Vehicle contraint on the maximal angular acceleration (considered to be symmetric)
 
 # Velocity profile (proportional to the maximal speed)
 full_speed:   1.0
@@ -28,8 +31,10 @@ action_steps: 1  # How many steps should be taken from each mpc-solution. Range 
 # Penalty weights
 lin_vel_penalty: 0      # Cost for linear velocity control action (should be 0)
 lin_acc_penalty: 10.0   # Cost for linear acceleration 
+lin_jerk_penalty: 5.0   # Cost for linear acceleration 
 ang_vel_penalty: 0      # Cost angular velocity control action
 ang_acc_penalty: 20.0   # Cost angular acceleration
+ang_jerk_penalty: 5.0   # Cost angular acceleration
 qrpd: 100.0             # Cost for reference path deviation
 qpos: 0.0               # Cost for position deviation each time step to the reference
 qvel: 10.0              # Cost for speed    deviation each time step to the reference
@@ -50,6 +55,6 @@ ndynobs: 6   # Number of variables per dynamic obstacle
 
 # Building options in the optimizer
 build_type: 'release'          # Can have 'debug' or 'release'
-build_directory: 'mpc_solver'   # Name of the directory where the build is created
+build_directory: 'mpc_solver_5X5_bspline_132'   # Name of the directory where the build is created
 bad_exit_codes: ["NotConvergedIterations", "NotConvergedOutOfTime"] # Optimizer specific names, otherwise "Converged"
 optimizer_name: 'navi_longiter'   # optimizer name

@@ -21,6 +21,7 @@ from mpc_traj_tracker.mpc.mpc_generator import MpcModule
 
 ### MPC import
 from interface_mpc import InterfaceMpc
+from interface_mpc_ori import InterfaceMpc_Original
 from util.mpc_config import Configurator
 
 ### Helper
@@ -32,7 +33,7 @@ from pkg_ddpg_td3.utils.map import test_scene_1_dict, test_scene_2_dict
 from timer import PieceTimer, LoopTimer
 from typing import List, Tuple
 
-MAX_RUN_STEP = 200
+MAX_RUN_STEP = 250
 DYN_OBS_SIZE = 0.8 + 0.8
 
 
@@ -68,7 +69,7 @@ def load_rl_model_env(generate_map, index: int) -> Tuple[PerDDPG, TD3, Trajector
     else:
         raise ValueError('Invalid index')
     model_path_ddpg = os.path.join(pathlib.Path(__file__).resolve().parents[1], 'Model/ddpg', model_folder_name, 'best_model')
-    model_path_td3 = os.path.join(pathlib.Path(__file__).resolve().parents[1], 'Model/td3', model_folder_name, 'best_model')
+    model_path_td3 = os.path.join(pathlib.Path(__file__).resolve().parents[1], 'Model/td3', model_folder_name, 'final_model')
     
     env_eval:TrajectoryPlannerEnvironment = gym.make(variant['env_name'], generate_map=generate_map)
     env_checker.check_env(env_eval)
@@ -110,13 +111,16 @@ def main(rl_index:int=1, decision_mode:int=1, to_plot=False, scene_option:Tuple[
     time_list = []
 
     ddpg_model, td3_model, env_eval = load_rl_model_env(generate_map(*scene_option), rl_index)
+    # for ob in env_eval.obstacles:
+    #     if ob.is_static:
+    #         print("Ob is static")
 
     CONFIG_FN = 'mpc_longiter.yaml'
     cfg_fpath = os.path.join(pathlib.Path(__file__).resolve().parents[1], 'config', CONFIG_FN)
     
     # Build the solver here(Only need to build once)
-    MpcModule(Configurator(cfg_fpath)).build(motion_model.unicycle_model, isConsiderDRL=True
-                            , env=env_eval, model=ddpg_model)
+    # MpcModule(Configurator(cfg_fpath)).build(dynamics=motion_model.unicycle_model, isConsiderDRL=True
+    #                                          ,env=env_eval,model=ddpg_model)
     
     traj_gen = load_mpc(cfg_fpath)
     geo_map = get_geometric_map(env_eval.get_map_description(), inflate_margin=0.8)
@@ -236,7 +240,8 @@ def main(rl_index:int=1, decision_mode:int=1, to_plot=False, scene_option:Tuple[
 
                     timer_mpc = PieceTimer()
                     try:
-                        mpc_output = traj_gen.get_action(chosen_ref_traj,cur_timestep=i) # MPC computes the action
+                        mpc_output = traj_gen.get_action(chosen_ref_traj) # MPC computes the action
+                        # mpc_output = traj_gen.get_action(chosen_ref_traj,cur_timestep=i) # MPC computes the action
                     except Exception as e:
                         done = True
                         print(f'MPC fails: {e}')

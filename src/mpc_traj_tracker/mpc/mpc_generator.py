@@ -1,6 +1,8 @@
 import copy
 from itertools import product
 import os
+from pkg_motion_model import motion_model
+# from csnn import 
 
 import numpy as np
 import casadi.casadi as cs
@@ -9,6 +11,7 @@ import torch # or "import opengen as og"
 
 from pkg_ddpg_td3.environment.environment import TrajectoryPlannerEnvironment
 from pkg_ddpg_td3.utils.per_ddpg import PerDDPG
+from stable_baselines3 import DQN
 from util.mpc_config import Configurator
 
 from typing import Union, List, Callable
@@ -197,7 +200,9 @@ class MpcModule:
         self.N_hor = self.config.N_hor  # control/pred horizon
         self.env = None
     
-    def Generate_Lookup_Table(self, env:TrajectoryPlannerEnvironment = None, model:PerDDPG = None):
+    def Generate_Lookup_Table(self, env:TrajectoryPlannerEnvironment = None, model:PerDDPG = None
+                              ,vel_low_limit = 0, vel_high_limit = 0
+                              ,ang_vel_low_limit = 0, ang_vel_high_limit = 0):
         if env != None:
             env = copy.deepcopy(env)
             boundary_array = env.boundary.get_padded_vertices()
@@ -210,11 +215,11 @@ class MpcModule:
             state3_range = np.linspace(0
                                     , 2 * np.pi
                                     , 5)
-            action1_range = np.linspace(self.config.lin_vel_min
-                                    , self.config.lin_vel_max
+            vel_range = np.linspace(vel_low_limit
+                                    , vel_high_limit
                                     , 5)
-            action2_range = np.linspace(-self.config.ang_vel_max
-                                    , self.config.ang_vel_max
+            ang_vel_range = np.linspace(ang_vel_low_limit
+                                    , ang_vel_high_limit
                                     , 5)
             timestep_range = np.linspace(0, 200, 5)
         else:
@@ -228,35 +233,48 @@ class MpcModule:
         state1_range = state1_range.tolist()
         state2_range = state2_range.tolist()
         state3_range = state3_range.tolist()
-        action1_range = action1_range.tolist()
-        action2_range = action2_range.tolist()
+        vel_range = vel_range.tolist()
+        ang_vel_range = ang_vel_range.tolist()
 
         # Generate all combinations of state and action
         state_combinations = list(product(state1_range, state2_range, state3_range))  # 1000 combinations
-        action_combinations = list(product(action1_range, action2_range))  # 100 combinations
+        vel_combinations = list(product(vel_range, ang_vel_range))  # 100 combinations
 
         # Loop through all states and actions
         state_tensor = torch.tensor(state_combinations, dtype=torch.float32)
-        action_tensor = torch.tensor(action_combinations, dtype=torch.float32)
+        vel_tensor = torch.tensor(vel_combinations, dtype=torch.float32)
 
         q_values = []
         for time in timestep_range:
             env.step_obstacles()
             for state in state_tensor:
-                for action in action_tensor:
+                for vel in vel_tensor:
+                    # Initialize the state of the environment
+                    env.set_agent_state(position=state[:2]
+                                        ,angle=state[2]
+                                        ,speed=vel[0]
+                                        ,angular_velocity=vel[1])
+
                     # Set the environment state and action
-                    env.set_agent_state(state[:2], state[2], action[0], action[1])
                     env.update_status(reset=False)  # Update the environment state
                     obsv = env.get_observation()   # Get the observation
                     done = env.update_termination()  # Update termination (though not used here)
+                    action_index, _states = model.predict(obsv, deterministic=True)
 
                     # Ensure action is a tensor
                     obsv = {key: torch.tensor(value, dtype=torch.float32).unsqueeze(0) for key, value in obsv.items()}
-                    actions = action.unsqueeze(0) # Shape: (1, 2)
+                    actions = torch.tensor(action_index, dtype=torch.float32).unsqueeze(0) # Shape: (1, 2)
 
                     # Compute Q-value for the observation-action pair
                     q_value = model.critic.q1_forward(obsv, actions)  # Add batch dimension
                     q_values.append(q_value.item())  # Append the scalar Q-value to the list
+
+                    # For DQN
+                    # print("Action: ",actions)
+                    # q_values_mod = model.policy.q_net(obsv)  # DQN 模型返回所有動作的 Q 值
+                    # action = int(actions.item())
+                    # q_value = q_values_mod[0, action]  # 選取指定動作的 Q 值
+                    # q_values.append(q_value.item())  # Append the scalar Q-value to the list
             
 
         # Flatten the Q-values for the lookup table
@@ -265,14 +283,15 @@ class MpcModule:
         lookupTable = cs.interpolant(
             "q_lookup",
             "bspline",
-            [state1_range, state2_range
-             , state3_range, action1_range
-             , action2_range, timestep_range],
+            [state1_range, state2_range, state3_range
+             , vel_range, ang_vel_range
+             , timestep_range],
             q_values_flat
         )
-        self.lookupTable = lookupTable
-        self.q_max = np.max(q_values_flat)
-
+        return lookupTable, np.max(q_values_flat)
+        # self.lookupTable_low = lookupTable
+        # self.q_max_low = np.max(q_values_flat)
+    
     def build(self, dynamics: Callable[[cs.MX, cs.MX, float], cs.MX], use_tcp:bool=False
               , isConsiderDRL = False, env:TrajectoryPlannerEnvironment = None
               , model:PerDDPG = None):
@@ -306,6 +325,9 @@ class MpcModule:
         horizon = cs.MX.sym('h',1)
         cur_timestep = cs.MX.sym('tm',1)
         q_qval = cs.MX.sym('qqval',1)
+        # v_middle = cs.MX.sym('vmid',1)
+        # ang_v_middle = cs.MX.sym('avmid',1)
+        # z = cs.vertcat(s, q, r, c, o_s, o_d, q_stc, q_dyn)
         z = cs.vertcat(s, q, r, c, o_s, o_d, q_stc, q_dyn, horizon, cur_timestep,q_qval)
 
         
@@ -321,8 +343,25 @@ class MpcModule:
         state_next = cs.vcat([x,y,theta])
 
         if isConsiderDRL:
-            self.Generate_Lookup_Table(env=env,model=model)
+            # lookupTable_vl_al, q_max_vl_al = self.Generate_Lookup_Table(env=env,model=model
+            #                                                ,vel_low_limit=self.config.lin_vel_min, vel_high_limit=(self.config.lin_vel_max + self.config.lin_vel_min) / 2
+            #                                                ,ang_vel_low_limit=-self.config.ang_vel_max, ang_vel_high_limit=0)
+            # lookupTable_vl_ah, q_max_vl_ah = self.Generate_Lookup_Table(env=env,model=model
+            #                                                ,vel_low_limit=self.config.lin_vel_min, vel_high_limit=(self.config.lin_vel_max + self.config.lin_vel_min) / 2
+            #                                                ,ang_vel_low_limit=0, ang_vel_high_limit=self.config.ang_vel_max)
+            # lookupTable_vh_al, q_max_vh_al = self.Generate_Lookup_Table(env=env,model=model
+            #                                                ,vel_low_limit=(self.config.lin_vel_max + self.config.lin_vel_min) / 2, vel_high_limit=self.config.lin_vel_max
+            #                                                ,ang_vel_low_limit=-self.config.ang_vel_max, ang_vel_high_limit=0)
+            # lookupTable_vh_ah, q_max_vh_ah = self.Generate_Lookup_Table(env=env,model=model
+            #                                                ,vel_low_limit=(self.config.lin_vel_max + self.config.lin_vel_min) / 2, vel_high_limit=self.config.lin_vel_max
+            #                                                ,ang_vel_low_limit=0, ang_vel_high_limit=self.config.ang_vel_max)
+            lookupTable, q_max = self.Generate_Lookup_Table(env=env,model=model
+                                                           ,vel_low_limit=self.config.lin_vel_min, vel_high_limit=self.config.lin_vel_max
+                                                           ,ang_vel_low_limit=-self.config.ang_vel_max, ang_vel_high_limit=self.config.ang_vel_max)
 
+
+        state_last = cs.vcat([x, y, theta])
+        u_t_last = cs.vcat([v_init, w_init])
         for kt in range(0, self.N_hor): # LOOP OVER TIME STEPS
             
             ### Run step with motion model
@@ -368,20 +407,43 @@ class MpcModule:
 
             # Also consider each element on the horizon for the q values
             if isConsiderDRL:
+                # acc = (u_t - u_t_last)/self.ts
                 inputs = cs.vertcat(state_next[0], state_next[1], state_next[2]
-                                    , u_t[0], u_t[1], cur_timestep)
-                cost += q_qval * (self.q_max - self.lookupTable(inputs))**2
+                                    , u_t[0], u_t[1]
+                                    , cur_timestep)
+                
+                # cost_result = cs.if_else(
+                #     cs.logic_and(u_t[0] <= v_middle, u_t[1] <= ang_v_middle),
+                #     (q_max_vl_al - lookupTable_vl_al(inputs))**2,
+                #     cs.if_else(
+                #         cs.logic_and(u_t[0] > v_middle, u_t[1] <= ang_v_middle),
+                #         (q_max_vh_al - lookupTable_vh_al(inputs))**2,
+                #         cs.if_else(
+                #             cs.logic_and(u_t[0] <= v_middle, u_t[1] > ang_v_middle),
+                #             (q_max_vl_ah - lookupTable_vl_ah(inputs))**2,
+                #             cs.if_else(
+                #                 cs.logic_and(u_t[0] > v_middle, u_t[1] > ang_v_middle),
+                #                 (q_max_vh_ah - lookupTable_vh_ah(inputs))**2,
+                #                 0
+                #             )
+                #         )
+                #     )
+                # )
+                cost_result = (q_max - lookupTable(inputs))**2
+                cost += q_qval * cost_result
+                state_last = state_next
+                u_t_last = u_t
         
         ### Terminal cost
         # state_final_goal = cs.vertcat(x_goal, y_goal, theta_goal)
         # cost += cost_refstate_deviation(state_next, state_final_goal, weights=cs.vertcat(qN, qN, qthetaN)) 
         if isConsiderDRL == False:
             cost += qN*((state_next[0]-x_goal)**2 + (state_next[1]-y_goal)**2) + qthetaN*(state_next[2]-theta_goal)**2 # terminated cost
-        else:
-            inputs = cs.vertcat(state_next[0], state_next[1], state_next[2]
-                                , u_t[0], u_t[1], cur_timestep)
-            cost += q_qval * (self.q_max - self.lookupTable(inputs))**2
-
+        # else:
+        #     acc = (u_t - u_t_last)/self.ts
+        #     inputs = cs.vertcat(acc[0], acc[1], cur_timestep)
+        #     cost += q_qval * (self.q_max - self.lookupTable(inputs))**2
+        
         ### Max speed bound
         umin = [self.config.lin_vel_min, -self.config.ang_vel_max] * self.N_hor
         umax = [self.config.lin_vel_max,  self.config.ang_vel_max] * self.N_hor
@@ -403,9 +465,24 @@ class MpcModule:
         cost += cs.mtimes(acc.T, acc)*acc_penalty
         cost += cs.mtimes(w_acc.T, w_acc)*w_acc_penalty
 
+        # Jerk constraint        
+        # jerk   = (acc-cs.vertcat(0, acc[0:-1]))/self.ts
+        # w_jerk = (w_acc-cs.vertcat(0, w_acc[0:-1]))/self.ts
+        # jerk_constraints = cs.vertcat(jerk, w_jerk)
+        # # Acceleration bounds
+        # jerk_min   = [ self.config.lin_jerk_min] * self.N_hor 
+        # w_jerk_min = [-self.config.ang_jerk_max] * self.N_hor
+        # jerk_max   = [ self.config.lin_jerk_max] * self.N_hor
+        # w_jerk_max = [ self.config.ang_jerk_max] * self.N_hor
+        # jerk_bounds = og.constraints.Rectangle(jerk_min + w_jerk_min, jerk_max + w_jerk_max)
+        # # Accelerations cost
+        # cost += cs.mtimes(jerk.T, jerk)*jerk_penalty
+        # cost += cs.mtimes(w_jerk.T, w_jerk)*w_jerk_penalty
+
         problem = og.builder.Problem(u, z, cost) \
             .with_constraints(bounds) \
-            .with_aug_lagrangian_constraints(acc_constraints, acc_bounds)
+            .with_aug_lagrangian_constraints(acc_constraints, acc_bounds) \
+            # .with_aug_lagrangian_constraints(jerk_constraints, jerk_bounds)
         problem.with_penalty_constraints(penalty_constraints)
 
         build_config = og.config.BuildConfiguration() \

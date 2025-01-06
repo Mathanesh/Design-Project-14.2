@@ -62,9 +62,19 @@ class InterfaceMpc:
         self._traj_gen.set_ref_trajectory(self.ref_path)
     
     def update_static_constraints(self, obstacle_list):
+        # print("Obstacle list length:",len(obstacle_list))
+        # print("STC list length:",len(self.stc_constraints))
         for i, map_obstacle in enumerate(obstacle_list):
+            # print("Length map_ob:",len(map_obstacle))
             b, a0, a1 = utils_geo.polygon_halfspace_representation(np.array(map_obstacle))
+            # print("Index:",i)
+            # print("Length b:",len(b))
+            # print("Length a0:",len(a0))
+            # print("Length a1:",len(a1))
+            # print("Length all:",len((b+a0+a1)))
             self.stc_constraints[i*self.config.nstcobs : (i+1)*self.config.nstcobs] = (b+a0+a1)
+        # print("Obstacle list length:",len(obstacle_list))
+        # print("STC list length:",len(self.stc_constraints))
 
     def update_dynamic_constraints(self, full_dyn_obstacle_list):
         params_per_dyn_obs =self.config.ndynobs * self.config.N_hor
