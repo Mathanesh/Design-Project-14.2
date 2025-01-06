@@ -136,6 +136,9 @@ def main_process(rl_index:int=1, decision_mode:int=1, to_plot=False, scene_optio
 
             switch = HintSwitcher(10, 2, 10)
 
+            # Enviroment for the reference path generation
+            drl_ref_path_gen = copy.deepcopy(env_eval)
+
             for i in range(0, MAX_RUN_STEP):
 
                 print(f"\r{decision_mode}, {i+1}/{MAX_RUN_STEP}", end="  ")
@@ -277,10 +280,11 @@ def main_process(rl_index:int=1, decision_mode:int=1, to_plot=False, scene_optio
                     last_mpc_time = timer_mpc(4, ms=True)
 
                 elif decision_mode == 5:
+                    # MPC with DRL reference path
                     env_eval.set_agent_state(traj_gen.state[:2], traj_gen.state[2], 
                                              traj_gen.last_action[0], traj_gen.last_action[1])
                     timer_rl = PieceTimer()
-                    action_index, _states = td3_model_MPC.predict(obsv, deterministic=True)
+                    action_index, _states = ddpg_model.predict(obsv, deterministic=True)
                     ### Manual step
                     env_eval.step_obstacles()
                     env_eval.update_status(reset=False)
@@ -289,24 +293,29 @@ def main_process(rl_index:int=1, decision_mode:int=1, to_plot=False, scene_optio
                     info = env_eval.get_info()
 
                     rl_ref = []
-                    robot_sim:MobileRobot = copy.deepcopy(env_eval.agent)
-                    robot_sim:MobileRobot
+
+                    drl_ref_path_gen.set_agent_state(traj_gen.state[:2], traj_gen.state[2], 
+                                             traj_gen.last_action[0], traj_gen.last_action[1])
+                    
+                    # Updates status of the reference path enviroment
+                    drl_ref_path_gen.step_obstacles()
+                    drl_ref_path_gen.update_status(reset=False)
+                    
+                    # Calculates reference path with DRL
                     for j in range(20):
                         if j == 0:
-                            robot_sim.step(action_index, traj_gen.config.ts)
+                            drl_ref_path_gen.agent.step(action_index, traj_gen.config.ts)
                         else:
-                            robot_sim.step_with_ref_speed(traj_gen.config.ts, 1.0)
-                        rl_ref.append(list(robot_sim.position))
+                            obsv_traj_gen = drl_ref_path_gen.get_observation()
+                            action_index_traj_gen, _states_traj_gen = ddpg_model.predict(obsv_traj_gen, deterministic=True)
+                            drl_ref_path_gen.agent.step(action_index_traj_gen, traj_gen.config.ts)
+                        rl_ref.append(list(drl_ref_path_gen.agent.position))
                     last_rl_time = timer_rl(4, ms=True)
                     
                     if dyn_obstacle_list:
                         traj_gen.update_dynamic_constraints(dyn_obstacle_pred_list)
                     original_ref_traj, rl_ref_traj, *_ = traj_gen.get_local_ref_traj(np.array(rl_ref))
-                    filtered_ref_traj = ref_traj_filter(original_ref_traj, rl_ref_traj, decay=1) # decay=1 means no decay
-                    if switch.switch(traj_gen.state[:2], original_ref_traj.tolist(), filtered_ref_traj.tolist(), geo_map.processed_obstacle_list+dyn_obstacle_list_poly):
-                        chosen_ref_traj = filtered_ref_traj
-                    else:
-                        chosen_ref_traj = original_ref_traj
+                    chosen_ref_traj = rl_ref_traj
                     timer_mpc = PieceTimer()
                     try:
                         mpc_output = traj_gen.get_action(chosen_ref_traj) # MPC computes the action
@@ -315,7 +324,7 @@ def main_process(rl_index:int=1, decision_mode:int=1, to_plot=False, scene_optio
                         print(f'MPC fails: {e}')
                         break
                     last_mpc_time = timer_mpc(4, ms=True)
-
+                
                 else:
                     raise ValueError("Invalid decision mode")
                 
@@ -342,9 +351,8 @@ def main_process(rl_index:int=1, decision_mode:int=1, to_plot=False, scene_optio
                 elif decision_mode == 5:
                     time_list.append(last_mpc_time+last_rl_time)
                     if to_plot:
-                        print(f"Step {i}.Runtime (Hybrid td3 MPC): {last_mpc_time+last_rl_time} = {last_mpc_time}+{last_rl_time}ms")                
-
-
+                        print(f"Step {i}.Runtime (Hybrid td3 reference): {last_mpc_time+last_rl_time} = {last_mpc_time}+{last_rl_time}ms")
+            
                 if to_plot & (i%1==0): # render every third frame
                     env_eval.render(dqn_ref=rl_ref, actual_ref=chosen_ref_traj)
 
@@ -398,19 +406,19 @@ if __name__ == '__main__':
     rl_index: 0 = image, 1 = ray
     decision_mode: 0 = MPC, 1 = DDPG, 2 = TD3, 3 = Hybrid DDPG, 4 = Hybrid TD3  
     """
-    num_trials = 5 # 50
+    num_trials = 50 # 50
     print_latex = True
     scene_option_list = [
                         #  (1, 1, 2), # a-medium
                         #  (1, 1, 3), # b-large
                         # (1, 2, 1), # c-small
-                        #  (1, 2, 2), # d-large
+                        # (1, 2, 2), # d-large
                         #  (1, 3, 1), # e-small
                         #  (1, 3, 2), # f-large
                         #  (1, 4, 1), # face-to-face
                         #  (2, 1, 1), # right turn with an obstacle
-                         (2, 1, 2), # sharp turn with an obstacle
-                        #  (2, 1, 3), # u-turn with an obstacle
+                        #(2, 1, 2), # sharp turn with an obstacle
+                          (2, 1, 3), # u-turn with an obstacle
                          ]
     
 
@@ -426,20 +434,20 @@ if __name__ == '__main__':
         td3_lid_metrics = Metrics(mode='TD3-L')
         td3_img_metrics = Metrics(mode='TD3-V')
         hyb_td3_lid_metrics = Metrics(mode='HYB-TD3-L')
-        hyb_td3_lid_metrics_MPC = Metrics(mode='HYB-TD3-L')
-        hyb_td3_img_metrics = Metrics(mode='HYB-TD3-V')
+        hyb_DDPG_lid_metrics_new_path = Metrics(mode='HYB-DDPG-L')
+        hyb_td3_img_metrics = Metrics(mode='HYB-DDPG-V')
 
         for i in range(num_trials):
             print(f"Trial {i+1}/{num_trials}")
             #mpc_metrics = main_evaluate(rl_index=1, decision_mode=0, metrics=mpc_metrics, scene_option=scene_option)
-            #ddpg_lid_metrics = main_evaluate(rl_index=1, decision_mode=1, metrics=ddpg_lid_metrics, scene_option=scene_option)
+            ddpg_lid_metrics = main_evaluate(rl_index=1, decision_mode=1, metrics=ddpg_lid_metrics, scene_option=scene_option)
             #ddpg_img_metrics = main_evaluate(rl_index=0, decision_mode=1, metrics=ddpg_img_metrics, scene_option=scene_option)
-            #hyb_ddpg_lid_metrics = main_evaluate(rl_index=1, decision_mode=3, metrics=hyb_ddpg_lid_metrics, scene_option=scene_option)
+            hyb_ddpg_lid_metrics = main_evaluate(rl_index=1, decision_mode=3, metrics=hyb_ddpg_lid_metrics, scene_option=scene_option)
             #hyb_ddpg_img_metrics = main_evaluate(rl_index=0, decision_mode=3, metrics=hyb_ddpg_img_metrics, scene_option=scene_option)
             #td3_lid_metrics = main_evaluate(rl_index=1, decision_mode=2, metrics=td3_lid_metrics, scene_option=scene_option)
             # td3_img_metrics = main_evaluate(rl_index=0, decision_mode=2, metrics=td3_img_metrics, scene_option=scene_option)
-            hyb_td3_lid_metrics = main_evaluate(rl_index=1, decision_mode=4, metrics=hyb_td3_lid_metrics, scene_option=scene_option)
-            hyb_td3_lid_metrics_MPC = main_evaluate(rl_index=1, decision_mode=5, metrics=hyb_td3_lid_metrics_MPC, scene_option=scene_option)
+            #hyb_td3_lid_metrics = main_evaluate(rl_index=1, decision_mode=4, metrics=hyb_td3_lid_metrics, scene_option=scene_option)
+            hyb_DDPG_lid_metrics_new_path = main_evaluate(rl_index=1, decision_mode=5, metrics=hyb_DDPG_lid_metrics_new_path, scene_option=scene_option)
             # hyb_td3_img_metrics = main_evaluate(rl_index=0, decision_mode=4, metrics=hyb_td3_img_metrics, scene_option=scene_option)
 
         round_digits = 2
@@ -447,15 +455,15 @@ if __name__ == '__main__':
         #print('MPC')
         #print(mpc_metrics.get_average(round_digits))
         #print()
-        #print('DDPG Lidar')
-        #print(ddpg_lid_metrics.get_average(round_digits))
-        #print()
+        print('DDPG Lidar')
+        print(ddpg_lid_metrics.get_average(round_digits))
+        print()
         #print('DDPG Image')
         #print(ddpg_img_metrics.get_average(round_digits))
         #print()
-        #print('DDPG hybrid Lidar')
-        #print(hyb_ddpg_lid_metrics.get_average(round_digits))
-        #print()
+        print('DDPG hybrid Lidar')
+        print(hyb_ddpg_lid_metrics.get_average(round_digits))
+        print()
         #print('DDPG hybrid Image')
         #print(hyb_ddpg_img_metrics.get_average(round_digits))
         #print('td3 Lidar')
@@ -464,12 +472,11 @@ if __name__ == '__main__':
         # print('td3 Image')
         # print(td3_img_metrics.get_average(round_digits))
         # print()
-        print('td3 hybrid Lidar')
-        print(hyb_td3_lid_metrics.get_average(round_digits))
-        print()
-
-        print('td3 hybrid Lidar MPC')
-        print(hyb_td3_lid_metrics_MPC.get_average(round_digits))
+        #print('td3 hybrid Lidar')
+        #print(hyb_td3_lid_metrics.get_average(round_digits))
+        #print()
+        print('DDPG hybrid Lidar new reference path')
+        print(hyb_DDPG_lid_metrics_new_path.get_average(round_digits))
         print()
         # print('td3 hybrid Image')
         # print(hyb_td3_img_metrics.get_average(round_digits))
@@ -480,12 +487,12 @@ if __name__ == '__main__':
         if print_latex:
             print(f"=== Scene {scene_option[0]}-{scene_option[1]}-{scene_option[2]} ===")
             #print(mpc_metrics.write_latex(round_digits))
-            #print(ddpg_lid_metrics.write_latex(round_digits))
+            print(ddpg_lid_metrics.write_latex(round_digits))
             #print(ddpg_img_metrics.write_latex(round_digits))
-            #print(hyb_ddpg_lid_metrics.write_latex(round_digits))
+            print(hyb_ddpg_lid_metrics.write_latex(round_digits))
             #print(hyb_ddpg_img_metrics.write_latex(round_digits))
             #print(td3_lid_metrics.write_latex(round_digits))
             # print(td3_img_metrics.write_latex(round_digits))
-            print(hyb_td3_lid_metrics.write_latex(round_digits))
-            print(hyb_td3_lid_metrics_MPC.write_latex(round_digits))
+            #print(hyb_td3_lid_metrics.write_latex(round_digits))
+            print(hyb_DDPG_lid_metrics_new_path.write_latex(round_digits))
             # print(hyb_td3_img_metrics.write_latex(round_digits))
