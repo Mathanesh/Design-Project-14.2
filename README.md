@@ -2,9 +2,8 @@
 *Trajectory Planning of Multiple Robots using Vision-Based Continuous Deep Reinforcement Learning and Model Predictive Control*
 ![Example](doc/cover.jpg "Example")
 
-The main branch of this repository is the single robot implementation of our paper. The multiple robot implementation is in a separate branch in the repository.
+The main branch of this repository is the method 1 implementation. The method 2 and method 3 implementation can be found in the training-with-mpc branch in the same repository.
 
-The paper can be found here: [Paper](doc/iros24_official.pdf)
 ## Quick Start
 ### OpEn
 The NMPC formulation is solved using open source implementation of PANOC, namely [OpEn](https://alphaville.github.io/optimization-engine/). Follow the [installation instructions](https://alphaville.github.io/optimization-engine/docs/installation) before proceeding. 
