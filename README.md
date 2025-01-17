@@ -1,4 +1,4 @@
-# Bird's-Eye-View Based Trajectory Planning of Multiple Mobil Robots Using DRL and MPC
+# Bird's-Eye-View Based Trajectory Planning of Multiple Mobile Robots Using DRL and MPC
 *Trajectory Planning of Multiple Robots using Vision-Based Continuous Deep Reinforcement Learning and Model Predictive Control*
 ![Example](doc/cover.jpg "Example")
 
