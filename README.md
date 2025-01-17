@@ -47,7 +47,7 @@ https://github.com/Mathanesh/Design-Project-14.2/tree/main
 conda activate drl-traj-plan
 ```
 
-3. Modify main_continous.py per needs. To run MPC with Q function integration choose decision mode. Other variables can also be configured.
+3. Modify main_continous.py as needed and to run MPC with Q function integration, choose decision mode. Other variables can also be configured.
 
 4. Run the script:
 ```bash
