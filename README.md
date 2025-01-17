@@ -2,7 +2,7 @@
 *Trajectory Planning of Multiple Robots using Vision-Based Continuous Deep Reinforcement Learning and Model Predictive Control*
 ![Example](doc/cover.jpg "Example")
 
-The main branch of this repository is the method 1 implementation. The method 2 and method 3 implementation can be found in the training-with-mpc branch in the same repository.
+The main branch of this repository is the implementation of MPC with Q-Function Integration (Method 1). The other two methods can be found in the "training-with-mpc" branch of this repository.
 
 ## Quick Start
 ### OpEn
